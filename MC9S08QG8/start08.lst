@@ -1,0 +1,419 @@
+*** EVALUATION ***
+ANSI-C/cC++ Compiler for HC08 V-5.0.33 Build 10132, May 13 2010
+
+    1:  /******************************************************************************
+    2:    FILE        : start08.c
+    3:    PURPOSE     : 68HC08 standard startup code
+    4:    LANGUAGE    : ANSI-C / INLINE ASSEMBLER
+    5:    ----------------------------------------------------------------------------
+    6:    HISTORY
+    7:      22 oct 93         Created.
+    8:      04/17/97          Also C++ constructors called in Init().
+    9:   ******************************************************************************/
+   10:  
+   11:  /**********************************************************************/
+   12:  /* NOTE:                                                              */
+   13:  /* This version of the startup code assumes that main                 */
+   14:  /* does never return (saving the 2 byte return address of _Startup on */
+   15:  /* the stack).                                                        */
+   16:  /**********************************************************************/
+   17:  
+   18:  #define __NO_FLAGS_OFFSET   /* we do not need the flags field in the startup data descriptor */
+   19:  #define __NO_MAIN_OFFSET    /* we do not need the main field in the startup data descriptor */
+   20:  
+   21:  #include <start08.h>
+   22:  
+   23:  #ifdef __cplusplus
+   24:  #define __EXTERN_C  extern "C"
+   25:  #else
+   26:  #define __EXTERN_C
+   27:  #endif
+   28:  
+   29:  /*lint -esym(752, main) main is used in HLI */
+   30:  __EXTERN_C extern void main(void); /* prototype of main function */
+   31:  
+   32:  /*lint -e961 -e537 -e451 non_bank.sgm is not a regular header file - it contains a CODE_SEG pragma only */
+   33:  #include "non_bank.sgm"
+   34:  /*lint +e961 +e537 +e451 */
+   35:  
+   36:  /***************************************************************************/
+   37:  /* Macros to control how the startup code handles the COP:                 */
+   38:  /* #define _DO_FEED_COP_   : do feed the COP                               */
+   39:  /* Without defining any of these, the startup code does NOT handle the COP */
+   40:  /***************************************************************************/
+   41:  /* __ONLY_INIT_SP define:                                                  */
+   42:  /* This define selects an shorter version of the startup code              */
+   43:  /* which only loads the stack pointer and directly afterwards calls        */
+   44:  /* main. This version does however NOT initialize global variables         */
+   45:  /* (so this version is not ANSI compliant!).                               */
+   46:  /***************************************************************************/
+   47:  
+   48:  /*lint -esym(750, __FEED_COP_IN_HLI) '__FEED_COP_IN_HLI' is used in HLI */
+   49:  /*lint -e961 the macro cannot be replaced by a function */
+   50:  #if defined(_DO_FEED_COP_)
+   51:  #define __FEED_COP_IN_HLI()  } _FEED_COP(); asm {
+   52:  #else
+   53:  #define __FEED_COP_IN_HLI() /* do nothing */
+   54:  #endif
+   55:  /*lint +e961 */
+   56:  
+   57:  #ifndef __ONLY_INIT_SP
+   58:  
+   59:  #pragma DATA_SEG FAR _STARTUP
+   60:  struct _tagStartup _startupData;    /* read-only:
+   61:                                       _startupData is allocated in ROM and
+   62:                                       initialized by the linker */
+   63:  
+   64:  #pragma MESSAGE DISABLE C20001 /* Warning C20001: Different value of stackpointer depending on control-flow */
+   65:  /* the function _COPY_L releases some bytes from the stack internally */
+   66:  
+   67:  #if defined(__OPTIMIZE_FOR_SIZE__) || defined(_DO_FEED_COP_)
+   68:  #pragma NO_ENTRY
+   69:  #pragma NO_EXIT
+   70:  #pragma NO_FRAME
+   71:  /*lint -esym(528, loadByte) inhibit warning about unreferenced loadByte function */
+   72:  static void near loadByte(void) {
+*** EVALUATION ***
+
+Function: loadByte
+Source  : C:/Users/winterer/workspace/heizung/Project_Headers\../Project_Settings/Startup_Code\start08.c
+Options : -BfaTSRON -Cs08 -D__NO_FLOAT__ -IC:/Users/winterer/workspace/heizung/Project_Headers -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/lib" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/asm_include" -Lasm=%n.lst -Ms -Qvtpnone -ViewHidden -WmsgFob"%f%e:%l:%k:%d %m\n" -WmsgSd20001
+
+   73:    asm {
+   74:               PSHH
+  0000 8b       [2]             PSHH  
+   75:               PSHX
+  0001 89       [2]             PSHX  
+   76:  #ifdef __HCS08__
+   77:               LDHX    5,SP
+  0002 9efe05   [5]             LDHX  5,SP
+   78:               LDA     0,X
+  0005 f6       [3]             LDA   ,X
+   79:               AIX     #1
+  0006 af01     [2]             AIX   #1
+   80:               STHX    5,SP
+  0008 9eff05   [5]             STHX  5,SP
+   81:  #else
+   82:               LDA     5,SP
+   83:               PSHA
+   84:               LDX     7,SP
+   85:               PULH
+   86:               LDA     0,X
+   87:               AIX     #1
+   88:               STX     6,SP
+   89:               PSHH
+   90:               PULX
+   91:               STX     5,SP
+   92:  #endif
+   93:               PULX
+  000b 88       [3]             PULX  
+   94:               PULH
+  000c 8a       [3]             PULH  
+   95:               RTS
+  000d 81       [6]             RTS   
+   96:    }
+   97:  }
+   98:  #endif /* defined(__OPTIMIZE_FOR_SIZE__) || defined(_DO_FEED_COP_) */
+   99:  
+  100:  
+  101:  #ifdef __cplusplus
+  102:  static void Call_Constructors(void) {
+  103:    int i;
+  104:  #ifdef __ELF_OBJECT_FILE_FORMAT__
+  105:    i = (int)(_startupData.nofInitBodies - 1);
+  106:    while (i >= 0) {
+  107:      (&_startupData.initBodies->initFunc)[i]();  /* call C++ constructors */
+  108:      i--;
+  109:    }
+  110:  #else /* __ELF_OBJECT_FILE_FORMAT__ */
+  111:    /* HIWARE object file format */
+  112:    if (_startupData.mInits != NULL) {
+  113:      _PFunc *fktPtr;
+  114:      fktPtr = _startupData.mInits;
+  115:      while(*fktPtr != NULL) {
+  116:        (**fktPtr)(); /* call constructor */
+  117:        fktPtr++;
+  118:      }
+  119:    }
+  120:  #endif /* __ELF_OBJECT_FILE_FORMAT__ */
+  121:  }
+  122:  #endif
+  123:  
+  124:  /*lint -esym(752,_COPY_L)  inhibit message on function declared, but not used (it is used in HLI) */
+  125:  __EXTERN_C extern void _COPY_L(void);
+  126:  /* DESC:    copy very large structures (>= 256 bytes) in 16-bit address space (stack incl.)
+  127:     IN:      TOS count, TOS(2) @dest, H:X @src
+  128:     OUT:
+  129:     WRITTEN: X,H */
+  130:  /*lint -esym(750, toCopyDownBegOffs) toCopyDownBegOffs is used in HLI */
+  131:  #ifdef __ELF_OBJECT_FILE_FORMAT__
+  132:  	#define toCopyDownBegOffs 0
+  133:  #else
+  134:  	#define toCopyDownBegOffs 2 /* for the hiware format, the toCopyDownBeg field is a long. Because the HC08 is big endian, we have to use an offset of 2 */
+  135:  #endif
+  136:  static void Init(void) {
+*** EVALUATION ***
+
+Function: Init
+Source  : C:/Users/winterer/workspace/heizung/Project_Headers\../Project_Settings/Startup_Code\start08.c
+Options : -BfaTSRON -Cs08 -D__NO_FLOAT__ -IC:/Users/winterer/workspace/heizung/Project_Headers -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/lib" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/asm_include" -Lasm=%n.lst -Ms -Qvtpnone -ViewHidden -WmsgFob"%f%e:%l:%k:%d %m\n" -WmsgSd20001
+
+  0000 a7fc     [2]             AIS   #-4
+  137:  /* purpose:     1) zero out RAM-areas where data is allocated
+  138:                  2) init run-time data
+  139:                  3) copy initialization data from ROM to RAM
+  140:   */
+  141:    /*lint -esym(529,p,i)  inhibit warning about symbols not used: it is used in HLI below */
+  142:    int i;
+  143:    int *far p;   /*lint !e625 accept unusual type modifier */
+  144:  
+  145:    asm {
+  146:  ZeroOut:
+  147:               LDA    _startupData.nofZeroOuts:1 ; /* nofZeroOuts */
+  0002 c60001   [4]             LDA   _startupData:1
+  148:               INCA
+  0005 4c       [1]             INCA  
+  0006 95       [2]             TSX   
+  149:               STA    i:1                        ; /* i is counter for number of zero outs */
+  0007 e701     [3]             STA   1,X
+  150:               LDA    _startupData.nofZeroOuts:0 ; /* nofZeroOuts */
+  0009 c60000   [4]             LDA   _startupData
+  151:               INCA
+  000c 4c       [1]             INCA  
+  152:               STA    i:0
+  000d f7       [2]             STA   ,X
+  153:               LDHX   _startupData.pZeroOut      ; /* *pZeroOut */
+  000e 320002   [5]             LDHX  _startupData:2
+  154:               BRA    Zero_5
+  0011 201f     [3]             BRA   L32 ;abs = 0032
+  0013          L13:    
+  155:  Zero_3:
+  156:               ; /* CLR    i:1 is already 0 */
+  157:  Zero_4:
+  158:               ; /* { HX == _pZeroOut } */
+  159:               PSHX
+  0013 89       [2]             PSHX  
+  160:               PSHH
+  0014 8b       [2]             PSHH  
+  161:               ; /* { nof bytes in (int)2,X } */
+  162:               ; /* { address in (int)0,X   } */
+  163:               LDA    0,X
+  0015 f6       [3]             LDA   ,X
+  164:               PSHA
+  0016 87       [2]             PSHA  
+  165:               LDA    2,X
+  0017 e602     [3]             LDA   2,X
+  166:               INCA
+  0019 4c       [1]             INCA  
+  167:               STA    p                 ; /* p:0 is used for high byte of byte counter */
+  001a 9ee706   [4]             STA   6,SP
+  168:               LDA    3,X
+  001d e603     [3]             LDA   3,X
+  169:               LDX    1,X
+  001f ee01     [3]             LDX   1,X
+  170:               PULH
+  0021 8a       [3]             PULH  
+  171:               INCA
+  0022 4c       [1]             INCA  
+  172:               BRA    Zero_0
+  0023 2003     [3]             BRA   L28 ;abs = 0028
+  0025          L25:    
+  173:  Zero_1:
+  174:             ;  /* CLRA   A is already 0, so we do not have to clear it */
+  175:  Zero_2:
+  176:               CLR    0,X
+  0025 7f       [4]             CLR   ,X
+  177:               AIX    #1
+  0026 af01     [2]             AIX   #1
+  0028          L28:    
+  178:               __FEED_COP_IN_HLI()     	; /* it's necessary to feed the COP in the inner loop for the fast COP timeout of some derivatives */
+  179:  Zero_0:
+  180:               DBNZA  Zero_2
+  0028 4bfb     [4]             DBNZA L25 ;abs = 0025
+  181:  Zero_6:
+  182:               DBNZ   p, Zero_1
+  002a 9e6b05f7 [8]             DBNZ  5,SP,L25 ;abs = 0025
+  183:               PULH
+  002e 8a       [3]             PULH  
+  184:               PULX                     ; /* restore *pZeroOut */
+  002f 88       [3]             PULX  
+  185:               AIX    #4                ; /* advance *pZeroOut */
+  0030 af04     [2]             AIX   #4
+  0032          L32:    
+  186:  Zero_5:
+  187:               DBNZ   i:1, Zero_4
+  0032 9e6b02dd [8]             DBNZ  2,SP,L13 ;abs = 0013
+  188:               DBNZ   i:0, Zero_3
+  0036 9e6b01d9 [8]             DBNZ  1,SP,L13 ;abs = 0013
+  189:  
+  190:  CopyDown:
+  191:  
+  192:    }
+  193:    
+  194:    /* copy down */
+  195:    /* _startupData.toCopyDownBeg  --->  {nof(16) dstAddr(16) {bytes(8)}^nof} Zero(16) */
+  196:  #if defined(__OPTIMIZE_FOR_SIZE__) || defined(_DO_FEED_COP_) /* for now: only -os version supports _DO_FEED_COP_ */
+  197:    asm {
+  198:  #ifdef __HCS08__
+  199:               LDHX   _startupData.toCopyDownBeg:toCopyDownBegOffs
+  003a 320004   [5]             LDHX  _startupData:4
+  200:               PSHX
+  003d 89       [2]             PSHX  
+  201:               PSHH
+  003e 8b       [2]             PSHH  
+  003f          L3F:    
+  202:  #else
+  203:               LDA    _startupData.toCopyDownBeg:(1+toCopyDownBegOffs)
+  204:               PSHA
+  205:               LDA    _startupData.toCopyDownBeg:(0+toCopyDownBegOffs)
+  206:               PSHA
+  207:  #endif
+  208:  Loop0:
+  209:               JSR    loadByte          ; /* load high byte counter */
+  003f ad00     [5]             BSR   loadByte
+  210:               TAX                      ; /* save for compare */
+  0041 97       [1]             TAX   
+  211:               INCA
+  0042 4c       [1]             INCA  
+  212:               STA    i
+  0043 9ee703   [4]             STA   3,SP
+  213:               JSR    loadByte          ; /* load low byte counter */
+  0046 ad00     [5]             BSR   loadByte
+  214:               INCA
+  0048 4c       [1]             INCA  
+  215:               STA    i:1
+  0049 9ee704   [4]             STA   4,SP
+  216:               DECA
+  004c 4a       [1]             DECA  
+  217:               BNE    notfinished
+  004d 2603     [3]             BNE   L52 ;abs = 0052
+  218:               CBEQX  #0, finished
+  004f 510018   [4]             CBEQX #0,L6A ;abs = 006a
+  0052          L52:    
+  219:  notfinished:
+  220:  
+  221:               JSR    loadByte          ; /* load high byte ptr */
+  0052 ad00     [5]             BSR   loadByte
+  222:               PSHA
+  0054 87       [2]             PSHA  
+  223:               PULH
+  0055 8a       [3]             PULH  
+  224:               JSR    loadByte          ; /* load low byte ptr */
+  0056 ad00     [5]             BSR   loadByte
+  225:               TAX                      ; /* HX is now destination pointer */
+  0058 97       [1]             TAX   
+  226:               BRA    Loop1
+  0059 2005     [3]             BRA   L60 ;abs = 0060
+  005b          L5B:    
+  227:  Loop3:
+  228:  Loop2:
+  229:               __FEED_COP_IN_HLI()
+  230:               JSR    loadByte          ; /* load data byte */
+  005b ad00     [5]             BSR   loadByte
+  231:               STA    0,X
+  005d f7       [2]             STA   ,X
+  232:               AIX    #1
+  005e af01     [2]             AIX   #1
+  0060          L60:    
+  233:  Loop1:
+  234:               DBNZ   i:1, Loop2
+  0060 9e6b04f7 [8]             DBNZ  4,SP,L5B ;abs = 005b
+  235:               DBNZ   i:0, Loop3
+  0064 9e6b03f3 [8]             DBNZ  3,SP,L5B ;abs = 005b
+  236:               BRA    Loop0
+  0068 20d5     [3]             BRA   L3F ;abs = 003f
+  006a          L6A:    
+  237:  
+  238:  finished:
+  239:               AIS #2
+  240:      }
+  241:  #else /*defined(__OPTIMIZE_FOR_SIZE__) || defined(_DO_FEED_COP_) */
+  242:    /* time optimized asm version. */
+  243:    asm {
+  244:  #ifdef __HCS08__
+  245:               LDHX   _startupData.toCopyDownBeg:toCopyDownBegOffs
+  246:  #else
+  247:               LDX    _startupData.toCopyDownBeg:(0+toCopyDownBegOffs)
+  248:               PSHX
+  249:               PULH
+  250:               LDX    _startupData.toCopyDownBeg:(1+toCopyDownBegOffs)
+  251:  #endif
+  252:  next:
+  253:               LDA   0,X                ; /* list is terminated by 2 zero bytes */
+  254:               ORA   1,X
+  255:               BEQ   copydone
+  256:               PSHX                     ; /* store current position */
+  257:               PSHH
+  258:               LDA   3,X                ; /* psh dest low */
+  259:               PSHA
+  260:               LDA   2,X                ; /* psh dest high */
+  261:               PSHA
+  262:               LDA   1,X                ; /* psh cnt low */
+  263:               PSHA
+  264:               LDA   0,X                ; /* psh cnt high */
+  265:               PSHA
+  266:               AIX   #4
+  267:               JSR   _COPY_L            ; /* copy one block */
+  268:               PULH
+  269:               PULX
+  270:               TXA
+  271:               ADD   1,X                ; /* add low */
+  272:               PSHA
+  273:               PSHH
+  274:               PULA
+  275:               ADC   0,X                ; /* add high */
+  276:               PSHA
+  277:               PULH
+  278:               PULX
+  279:               AIX   #4
+  280:               BRA next
+  281:  copydone:
+  282:    }
+  283:  #endif /* defined(__OPTIMIZE_FOR_SIZE__) || defined(_DO_FEED_COP_) */
+  284:  
+  285:    /* FuncInits: for C++, this are the global constructors */
+  286:  #ifdef __cplusplus
+  287:    Call_Constructors();
+  288:  #endif /* __cplusplus */
+  289:  
+  290:    /* implement ROM libraries initialization here (see startup.c) */
+  291:  }
+  006a a706     [2]             AIS   #6
+  006c 81       [6]             RTS   
+  292:  #endif /* __ONLY_INIT_SP */
+  293:  
+  294:  
+  295:  #pragma NO_EXIT
+  296:  __EXTERN_C void _Startup(void) {
+*** EVALUATION ***
+
+Function: _Startup
+Source  : C:/Users/winterer/workspace/heizung/Project_Headers\../Project_Settings/Startup_Code\start08.c
+Options : -BfaTSRON -Cs08 -D__NO_FLOAT__ -IC:/Users/winterer/workspace/heizung/Project_Headers -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/lib" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/asm_include" -Lasm=%n.lst -Ms -Qvtpnone -ViewHidden -WmsgFob"%f%e:%l:%k:%d %m\n" -WmsgSd20001
+
+  297:  /* set the reset vector to _Startup in the linker parameter file (*.prm):
+  298:      'VECTOR 0 _Startup'
+  299:  
+  300:      purpose:    1)  initialize the stack
+  301:                  2)  initialize run-time, ...
+  302:                      initialize the RAM, copy down init data, etc (Init)
+  303:                  3)  call main;
+  304:      called from: _PRESTART-code generated by the Linker
+  305:  */
+  306:    INIT_SP_FROM_STARTUP_DESC(); /*lint !e960 MISRA 14.3 REQ, not a null statement (instead: several HLI statements) */
+  0000 450000   [3]             LDHX  @__SEG_END_SSTACK
+  0003 94       [2]             TXS   
+  307:    
+  308:  #ifndef  __ONLY_INIT_SP
+  309:    Init(); /*lint !e522 function 'Init' contains inline assembly */
+  0004 ad00     [5]             BSR   Init
+  310:  #endif
+  311:  #ifndef __BANKED__
+  312:    __asm JMP main;  /* with a C style main(); we would push the return address on the stack wasting 2 RAM bytes */
+  0006 cc0000   [4]             JMP   main
+  313:  #else
+  314:    __asm CALL main;
+  315:  #endif
+  316:  }
+  317:  /*lint --e{766} non_bank.sgm is not a regular header file - it contains a CODE_SEG pragma only */
+  318:  

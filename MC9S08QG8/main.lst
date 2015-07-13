@@ -1,0 +1,943 @@
+*** EVALUATION ***
+ANSI-C/cC++ Compiler for HC08 V-5.0.33 Build 10132, May 13 2010
+
+    1:  #include <hidef.h> /* for EnableInterrupts macro */
+    2:  #include "derivative.h" /* include peripheral declarations */
+    3:  
+    4:  //long = 32Bit
+    5:  //int = 16Bit
+    6:  //char = 8Bit
+    7:  
+    8:  unsigned char debug_led = 0;
+    9:  unsigned char debug_mask = 0x80;
+   10:  unsigned char pwm0_percent = 0;
+   11:  unsigned char pwm0_percent_old = 0;
+   12:  unsigned char pwm1_percent =100;
+   13:  unsigned char pwm1_percent_old = 0;
+   14:  
+   15:  //IIC Variablen
+   16:  #define MAX_IIC_RX_DATA 5
+   17:  char IIC_RX_Data[MAX_IIC_RX_DATA]; //idx 0 = register; idx 1 = value
+   18:  
+   19:  //idx 0..3 = second counter
+   20:  //idx 4..7 = current counter impuls
+   21:  //idx 8..11 = hour counter 1 (Heizung)
+   22:  //idx 12..15 = hour counter 2 (UWP 1)
+   23:  //idx 16..19 = hour counter 3 (UWP 2)
+   24:  //idx 20..23 = hour counter 3 (BWP)
+   25:  #define MAX_IIC_TX_DATA 24
+   26:  char IIC_TX_Data[MAX_IIC_TX_DATA];
+   27:  signed char rx_count = 0;
+   28:  signed char tx_count = 0;
+   29:  
+   30:  //Zaehlerimpuls vom Stromzaehler
+   31:  unsigned long current_counter = 0;
+   32:  
+   33:  //Betriebsstundenzaehler
+   34:  unsigned long secound_counter = 0;
+   35:  unsigned long secound_counter_old = 0;
+   36:  unsigned long hour_counter1 = 0;
+   37:  unsigned long hour_counter2 = 0;
+   38:  unsigned long hour_counter3 = 0;
+   39:  unsigned long hour_counter4 = 0;
+   40:  
+   41:  void Init_I2C()
+   42:  {
+*** EVALUATION ***
+
+Function: Init_I2C
+Source  : C:/Users/winterer/workspace/heizung/Project_Headers\../Sources\main.c
+Options : -BfaTSRON -Cs08 -D__NO_FLOAT__ -IC:/Users/winterer/workspace/heizung/Project_Headers -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/lib" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/asm_include" -Lasm=%n.lst -Ms -Qvtpnone -ViewHidden -WmsgFob"%f%e:%l:%k:%d %m\n" -WmsgSd1106
+
+  0000 8b       [2]             PSHH  
+   43:    char i;
+   44:    //Init IIC Operation
+   45:    SOPT2_IICPS = 1; // B6=SDA; B7=SCL
+  0001 450000   [3]             LDHX  @_SOPT2
+  0004 f6       [3]             LDA   ,X
+  0005 aa02     [2]             ORA   #2
+  0007 f7       [2]             STA   ,X
+   46:  
+   47:    //This is the address that will be responded to if set up as a slave
+   48:    IICA = 0xA0;
+  0008 6ea000   [4]             MOV   #-96,_IICA
+   49:  
+   50:    //Multiply factor of 1
+   51:    IICF_MULT = 0;
+  000b b600     [3]             LDA   _IICF
+  000d a43f     [2]             AND   #63
+  000f b700     [3]             STA   _IICF
+   52:  
+   53:    //SCL divider of 32
+   54:    IICF_ICR = 0x09;
+  0011 b600     [3]             LDA   _IICF
+  0013 a4c0     [2]             AND   #-64
+  0015 aa09     [2]             ORA   #9
+  0017 b700     [3]             STA   _IICF
+   55:  
+   56:    //Enable IIC and interrupts
+   57:    IICC  = 0xc0;
+  0019 6ec000   [4]             MOV   #-64,_IICC
+   58:  
+   59:    //Initialize Data Array
+   60:    for(i<0;i<MAX_IIC_RX_DATA;i++){
+  001c 2008     [3]             BRA   L26 ;abs = 0026
+  001e          L1E:    
+   61:      IIC_RX_Data[i] = 0;
+  001e fe       [3]             LDX   ,X
+  001f 8c       [1]             CLRH  
+  0020 4f       [1]             CLRA  
+  0021 d70000   [4]             STA   @IIC_RX_Data,X
+  0024 95       [2]             TSX   
+  0025 7c       [4]             INC   ,X
+  0026          L26:    
+  0026 95       [2]             TSX   
+  0027 f6       [3]             LDA   ,X
+  0028 a105     [2]             CMP   #5
+  002a 240a     [3]             BCC   L36 ;abs = 0036
+  002c 20f0     [3]             BRA   L1E ;abs = 001e
+  002e          L2E:    
+   62:    }
+   63:    for(i<0;i<MAX_IIC_TX_DATA;i++){
+   64:      IIC_TX_Data[i] = 0;
+  002e fe       [3]             LDX   ,X
+  002f 8c       [1]             CLRH  
+  0030 4f       [1]             CLRA  
+  0031 d70000   [4]             STA   @IIC_TX_Data,X
+  0034 95       [2]             TSX   
+  0035 7c       [4]             INC   ,X
+  0036          L36:    
+  0036 f6       [3]             LDA   ,X
+  0037 a118     [2]             CMP   #24
+  0039 25f3     [3]             BCS   L2E ;abs = 002e
+   65:    }
+   66:  
+   67:  }
+  003b 8a       [3]             PULH  
+  003c 81       [6]             RTS   
+   68:  
+   69:  void CheckSRW(void)
+   70:  {
+*** EVALUATION ***
+
+Function: CheckSRW
+Source  : C:/Users/winterer/workspace/heizung/Project_Headers\../Sources\main.c
+Options : -BfaTSRON -Cs08 -D__NO_FLOAT__ -IC:/Users/winterer/workspace/heizung/Project_Headers -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/lib" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/asm_include" -Lasm=%n.lst -Ms -Qvtpnone -ViewHidden -WmsgFob"%f%e:%l:%k:%d %m\n" -WmsgSd1106
+
+   71:    //Check for Slave receive or transmit
+   72:    if(IICS_SRW){
+  0000 050010   [5]             BRCLR 2,_IICS,L13 ;abs = 0013
+   73:      //Slave Transmit
+   74:      IICC_TX = 1;
+  0003 1800     [5]             BSET  4,_IICC
+   75:      IICD = IIC_TX_Data[IIC_RX_Data[0]];
+  0005 ce0000   [4]             LDX   IIC_RX_Data
+  0008 8c       [1]             CLRH  
+  0009 d60000   [4]             LDA   @IIC_TX_Data,X
+  000c b700     [3]             STA   _IICD
+   76:      tx_count++;
+  000e 450000   [3]             LDHX  @tx_count
+  0011 7c       [4]             INC   ,X
+   77:    } else {
+  0012 81       [6]             RTS   
+  0013          L13:    
+   78:      IICC_TX = 0;
+  0013 1900     [5]             BCLR  4,_IICC
+   79:      //Dummy Read
+   80:      IICD;
+  0015 b600     [3]             LDA   _IICD
+   81:    }
+   82:  }
+  0017 81       [6]             RTS   
+   83:  
+   84:  
+   85:  
+   86:  void Set_PWM0(unsigned char percent)
+   87:  {
+*** EVALUATION ***
+
+Function: Set_PWM0
+Source  : C:/Users/winterer/workspace/heizung/Project_Headers\../Sources\main.c
+Options : -BfaTSRON -Cs08 -D__NO_FLOAT__ -IC:/Users/winterer/workspace/heizung/Project_Headers -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/lib" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/asm_include" -Lasm=%n.lst -Ms -Qvtpnone -ViewHidden -WmsgFob"%f%e:%l:%k:%d %m\n" -WmsgSd1106
+
+  0000 87       [2]             PSHA  
+   88:  //  unsigned int pwmval = percent;
+   89:  //
+   90:  //  if(pwmval > 100){
+   91:  //    pwmval = 100;
+   92:  //  }
+   93:  //  if(pwmval>0 && pwmval<15){
+   94:  //    pwmval = 15;  //bei kleineren Werten laeuft der Luefter nicht an
+   95:  //  }
+   96:  //
+   97:  //  pwmval = 100 - pwmval;
+   98:  //  pwmval *= 4;
+   99:  //  if(pwmval > 0){
+  100:  //    pwmval += 1;  //Wenn Wert groesser als PWM Modulo, dann wird 100% moeglich
+  101:  //  }
+  102:  //
+  103:  //  TPMC0V = pwmval;
+  104:  
+  105:    if(percent > 100){
+  0001 a164     [2]             CMP   #100
+  0003 2304     [3]             BLS   L9 ;abs = 0009
+  106:      percent = 100;
+  0005 a664     [2]             LDA   #100
+  0007 200a     [3]             BRA   L13 ;abs = 0013
+  0009          L9:     
+  107:    }
+  108:    if(percent>0 && percent<15){
+  0009 95       [2]             TSX   
+  000a 7d       [3]             TST   ,X
+  000b 2708     [3]             BEQ   L15 ;abs = 0015
+  000d a10f     [2]             CMP   #15
+  000f 2404     [3]             BCC   L15 ;abs = 0015
+  109:      percent = 15;  //bei kleineren Werten laeuft der Luefter nicht an
+  0011 a60f     [2]             LDA   #15
+  0013          L13:    
+  0013 95       [2]             TSX   
+  0014 f7       [2]             STA   ,X
+  0015          L15:    
+  110:    }
+  111:  
+  112:    percent = 100 - percent;
+  0015 a664     [2]             LDA   #100
+  0017 f0       [3]             SUB   ,X
+  0018 f7       [2]             STA   ,X
+  113:    percent *= 2;
+  0019 78       [4]             LSL   ,X
+  114:    if(percent > 0){
+  001a 2701     [3]             BEQ   L1D ;abs = 001d
+  115:      percent += 1;  //Wenn Wert groesser als PWM Modulo, dann wird 100% moeglich
+  001c 7c       [4]             INC   ,X
+  001d          L1D:    
+  116:    }
+  117:    TPMC0VH = 0;
+  001d 3f00     [5]             CLR   _TPMC0V
+  118:    TPMC0VL = percent;
+  001f f6       [3]             LDA   ,X
+  0020 b701     [3]             STA   _TPMC0V:1
+  119:  }
+  0022 8a       [3]             PULH  
+  0023 81       [6]             RTS   
+  120:  
+  121:  void Set_PWM1(unsigned char percent)
+  122:  {
+*** EVALUATION ***
+
+Function: Set_PWM1
+Source  : C:/Users/winterer/workspace/heizung/Project_Headers\../Sources\main.c
+Options : -BfaTSRON -Cs08 -D__NO_FLOAT__ -IC:/Users/winterer/workspace/heizung/Project_Headers -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/lib" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/asm_include" -Lasm=%n.lst -Ms -Qvtpnone -ViewHidden -WmsgFob"%f%e:%l:%k:%d %m\n" -WmsgSd1106
+
+  0000 87       [2]             PSHA  
+  123:    if(percent > 100){
+  0001 a164     [2]             CMP   #100
+  0003 2304     [3]             BLS   L9 ;abs = 0009
+  124:      percent = 100;
+  0005 a664     [2]             LDA   #100
+  0007 200a     [3]             BRA   L13 ;abs = 0013
+  0009          L9:     
+  125:    }
+  126:    if(percent>0 && percent<15){
+  0009 95       [2]             TSX   
+  000a 7d       [3]             TST   ,X
+  000b 2708     [3]             BEQ   L15 ;abs = 0015
+  000d a10f     [2]             CMP   #15
+  000f 2404     [3]             BCC   L15 ;abs = 0015
+  127:      percent = 15;  //bei kleineren Werten laeuft der Luefter nicht an
+  0011 a60f     [2]             LDA   #15
+  0013          L13:    
+  0013 95       [2]             TSX   
+  0014 f7       [2]             STA   ,X
+  0015          L15:    
+  128:    }
+  129:  
+  130:    percent = 100 - percent;
+  0015 a664     [2]             LDA   #100
+  0017 f0       [3]             SUB   ,X
+  0018 f7       [2]             STA   ,X
+  131:    percent *= 2;
+  0019 78       [4]             LSL   ,X
+  132:    if(percent > 0){
+  001a 2701     [3]             BEQ   L1D ;abs = 001d
+  133:      percent += 1;  //Wenn Wert groesser als PWM Modulo, dann wird 100% moeglich
+  001c 7c       [4]             INC   ,X
+  001d          L1D:    
+  134:    }
+  135:    TPMC1VH = 0;
+  001d 3f00     [5]             CLR   _TPMC1V
+  136:    TPMC1VL = percent;
+  001f f6       [3]             LDA   ,X
+  0020 b701     [3]             STA   _TPMC1V:1
+  137:  }
+  0022 8a       [3]             PULH  
+  0023 81       [6]             RTS   
+  138:  
+  139:  void Init_PWM(void)
+  140:  {
+*** EVALUATION ***
+
+Function: Init_PWM
+Source  : C:/Users/winterer/workspace/heizung/Project_Headers\../Sources\main.c
+Options : -BfaTSRON -Cs08 -D__NO_FLOAT__ -IC:/Users/winterer/workspace/heizung/Project_Headers -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/lib" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/asm_include" -Lasm=%n.lst -Ms -Qvtpnone -ViewHidden -WmsgFob"%f%e:%l:%k:%d %m\n" -WmsgSd1106
+
+  141:    TPMMODH = 0x00; // set period to 200
+  0000 3f00     [5]             CLR   _TPMMOD
+  142:    TPMMODL = 0xc8;
+  0002 6ec801   [4]             MOV   #-56,_TPMMOD:1
+  143:  //  TPMMODH = 0x01; // set period to 400
+  144:  //  TPMMODL = 0x90;
+  145:  
+  146:  
+  147:    TPMC0VH = 0x00;
+  0005 3f00     [5]             CLR   _TPMC0V
+  148:    TPMC0VL = 0x00;
+  0007 3f01     [5]             CLR   _TPMC0V:1
+  149:    TPMC0SC = 0x24; // set channel 0 for PWM
+  0009 6e2400   [4]             MOV   #36,_TPMC0SC
+  150:  
+  151:    TPMC1VH = 0x00;
+  000c 3f00     [5]             CLR   _TPMC1V
+  152:    TPMC1VL = 0x00;
+  000e 3f01     [5]             CLR   _TPMC1V:1
+  153:    TPMC1SC = 0x24; // set channel 1 for PWM
+  0010 6e2400   [4]             MOV   #36,_TPMC1SC
+  154:  
+  155:    TPMSC = 0x08;   // select bus clock and start timer
+  0013 6e0800   [4]             MOV   #8,_TPMSC
+  156:  
+  157:    Set_PWM0(0);
+  0016 4f       [1]             CLRA  
+  0017 ad00     [5]             BSR   Set_PWM0
+  158:    Set_PWM1(0);
+  0019 4f       [1]             CLRA  
+  001a 2000     [3]             BRA   Set_PWM1
+  159:  }
+  160:  
+  161:  
+  162:  void main(void)
+  163:  {
+*** EVALUATION ***
+
+Function: main
+Source  : C:/Users/winterer/workspace/heizung/Project_Headers\../Sources\main.c
+Options : -BfaTSRON -Cs08 -D__NO_FLOAT__ -IC:/Users/winterer/workspace/heizung/Project_Headers -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/lib" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/asm_include" -Lasm=%n.lst -Ms -Qvtpnone -ViewHidden -WmsgFob"%f%e:%l:%k:%d %m\n" -WmsgSd1106
+
+  164:  
+  165:    EnableInterrupts;
+  0000 9a       [1]             CLI   
+  166:  
+  167:    PTBDD_PTBDD4 = 1; // Set PTB4 as an output for debug LED
+  0001 1800     [5]             BSET  4,_PTBDD
+  168:    PTBD_PTBD4 = 1;
+  0003 1800     [5]             BSET  4,_PTBD
+  169:    PTBD_PTBD4 = 0;
+  0005 1900     [5]             BCLR  4,_PTBD
+  170:    PTBD_PTBD4 = 1;
+  0007 1800     [5]             BSET  4,_PTBD
+  171:  
+  172:    /** KBI Set Up PTA1 */
+  173:    KBIPE_KBIPE1 =1; /* Enable Keyboard Pin */
+  0009 1200     [5]             BSET  1,_KBIPE
+  174:    KBISC_KBIE = 1;  /* Enable Keyboard Interrupts */
+  000b 1200     [5]             BSET  1,_KBISC
+  175:    KBISC_KBACK = 1; /* Clear Pending Keyboard Interrupts */
+  000d 1400     [5]             BSET  2,_KBISC
+  176:    PTAPE_PTAPE1 = 1; /* Enable Pullup for Keyboard pin */
+  000f 450000   [3]             LDHX  @_PTAPE
+  0012 f6       [3]             LDA   ,X
+  0013 aa02     [2]             ORA   #2
+  0015 f7       [2]             STA   ,X
+  177:  
+  178:    PTADD_PTADD2 = 0; // Set PTA2 as an input for hour_counter1
+  0016 1500     [5]             BCLR  2,_PTADD
+  179:    PTAPE_PTAPE2 = 1; // Enable Pullup
+  0018 f6       [3]             LDA   ,X
+  0019 aa04     [2]             ORA   #4
+  001b f7       [2]             STA   ,X
+  180:  
+  181:    PTADD_PTADD3 = 0; // Set PTA3 as an input for hour_counter2
+  001c 1700     [5]             BCLR  3,_PTADD
+  182:    PTAPE_PTAPE3 = 1; // Enable Pullup
+  001e f6       [3]             LDA   ,X
+  001f aa08     [2]             ORA   #8
+  0021 f7       [2]             STA   ,X
+  183:  
+  184:    PTADD_PTADD5 = 0; // Set PTA5 as an input for hour_counter3
+  0022 1b00     [5]             BCLR  5,_PTADD
+  185:    PTAPE_PTAPE5 = 1; // Enable Pullup
+  0024 f6       [3]             LDA   ,X
+  0025 aa20     [2]             ORA   #32
+  0027 f7       [2]             STA   ,X
+  186:  
+  187:    PTBDD_PTBDD3 = 0; // Set PTB3 as an input for hour_counter4
+  0028 1700     [5]             BCLR  3,_PTBDD
+  188:    PTBPE_PTBPE3 = 1; // Enable Pullup
+  002a 450000   [3]             LDHX  @_PTBPE
+  002d f6       [3]             LDA   ,X
+  002e aa08     [2]             ORA   #8
+  0030 f7       [2]             STA   ,X
+  189:  
+  190:    Init_I2C();
+  0031 cd0000   [6]             JSR   Init_I2C
+  191:  
+  192:    //MTIMSC
+  193:    MTIMSC_TOIE = 1; //interrupt enable
+  0034 1c00     [5]             BSET  6,_MTIMSC
+  194:  
+  195:    MTIMCLK = 0x08; //counts busclk; prescaler = 256
+  0036 6e0800   [4]             MOV   #8,_MTIMCLK
+  196:    //MTIMMOD = 156;  //156 -> 1h liefert 3885 counts anstatt 3600
+  197:    //MTIMMOD = 157;  //157 -> 1h liefert 3862 counts anstatt 3600
+  198:    //MTIMMOD = 168;  //168 -> 1h liefert 3322 counts anstatt 3600
+  199:    //MTIMMOD = 160;  //160 -> 1m liefert 58 counts anstatt 60
+  200:    //MTIMMOD = 159;  //159 -> 1m liefert 59 counts anstatt 60
+  201:  
+  202:    //MTIMMOD = 156;  //156 -> 1h liefert 3577 counts anstatt 3600
+  203:    //MTIMMOD = 157;  //157 -> 1h liefert 3553 counts anstatt 3600
+  204:    //MTIMMOD = 158;  //158 -> 1h liefert 3532 counts anstatt 3600
+  205:    //MTIMMOD = 159;  //159 -> 1h liefert 3509 counts anstatt 3600
+  206:    MTIMMOD = 155;  //155 -> 1h liefert 3599 counts anstatt 3600
+  0039 6e9b00   [4]             MOV   #-101,_MTIMMOD
+  207:  
+  208:    MTIMSC;
+  003c b600     [3]             LDA   _MTIMSC
+  209:    MTIMSC_TOF = 0;
+  003e 1f00     [5]             BCLR  7,_MTIMSC
+  210:  
+  211:    MTIMSC_TSTP = 0; //starting...
+  0040 1900     [5]             BCLR  4,_MTIMSC
+  212:  
+  213:  
+  214:    //PWM
+  215:    Init_PWM();
+  0042 ad00     [5]             BSR   Init_PWM
+  0044          L44:    
+  216:  
+  217:    for(;;) {
+  218:  
+  219:      if(debug_led&0x20){
+  0044 c60000   [4]             LDA   debug_led
+  0047 a520     [2]             BIT   #32
+  0049 2703     [3]             BEQ   L4E ;abs = 004e
+  220:        debug_led &= ~0x20;
+  004b a4df     [2]             AND   #-33
+  221:      }else{
+  004d 65       [3]             SKIP2 L50 ;abs = 0050
+  004e          L4E:    
+  222:        debug_led |= 0x20;
+  004e aa20     [2]             ORA   #32
+  0050          L50:    
+  0050 c70000   [4]             STA   debug_led
+  223:      }
+  224:  
+  225:      if(secound_counter != secound_counter_old){
+  0053 320002   [5]             LDHX  secound_counter_old:2
+  0056 3e0002   [6]             CPHX  secound_counter:2
+  0059 2613     [3]             BNE   L6E ;abs = 006e
+  005b c60001   [4]             LDA   secound_counter_old:1
+  005e c10001   [4]             CMP   secound_counter:1
+  0061 260b     [3]             BNE   L6E ;abs = 006e
+  0063 c60000   [4]             LDA   secound_counter_old
+  0066 c10000   [4]             CMP   secound_counter
+  0069 2603     [3]             BNE   L6E ;abs = 006e
+  006b cc01ae   [4]             JMP   L1AE ;abs = 01ae
+  006e          L6E:    
+  226:        secound_counter_old = secound_counter;
+  006e 320002   [5]             LDHX  secound_counter:2
+  0071 960002   [5]             STHX  secound_counter_old:2
+  0074 320000   [5]             LDHX  secound_counter
+  0077 960000   [5]             STHX  secound_counter_old
+  227:  
+  228:        if(debug_led&0x80){
+  007a c60000   [4]             LDA   debug_led
+  007d 2a03     [3]             BPL   L82 ;abs = 0082
+  229:          debug_led &= ~0x80;
+  007f a47f     [2]             AND   #127
+  230:        }else{
+  0081 65       [3]             SKIP2 L84 ;abs = 0084
+  0082          L82:    
+  231:          debug_led |= 0x80;
+  0082 aa80     [2]             ORA   #-128
+  0084          L84:    
+  0084 c70000   [4]             STA   debug_led
+  232:        }
+  233:  
+  234:        if(PTAD_PTAD2 == 0){
+  0087 040042   [5]             BRSET 2,_PTAD,LCC ;abs = 00cc
+  235:          hour_counter1++;
+  008a 450000   [3]             LDHX  @hour_counter1
+  008d cd01ff   [6]             JSR   L1FF ;abs = 01ff
+  236:          IIC_TX_Data[8] = (unsigned char)((hour_counter1&0x000000ff));
+  0090 c60003   [4]             LDA   hour_counter1:3
+  0093 c70008   [4]             STA   IIC_TX_Data:8
+  237:          IIC_TX_Data[9] = (unsigned char)((hour_counter1&0x0000ff00)>>8);
+  0096 c60002   [4]             LDA   hour_counter1:2
+  0099 c70009   [4]             STA   IIC_TX_Data:9
+  238:          IIC_TX_Data[10] = (unsigned char)((hour_counter1&0x00ff0000)>>16);
+  009c 450000   [3]             LDHX  @hour_counter1
+  009f cd0000   [6]             JSR   _LAND_RC
+  00a2 00ff0000         DC.L  16711680
+  00a6 95       [2]             TSX   
+  00a7 a610     [2]             LDA   #16
+  00a9 cd0000   [6]             JSR   _LLSR
+  00ac 95       [2]             TSX   
+  00ad e603     [3]             LDA   3,X
+  00af c7000a   [4]             STA   IIC_TX_Data:10
+  239:          IIC_TX_Data[11] = (unsigned char)((hour_counter1&0xff000000)>>24);
+  00b2 450000   [3]             LDHX  @hour_counter1
+  00b5 cd0000   [6]             JSR   _LAND_RC
+  00b8 ff000000         DC.L  -16777216
+  00bc 95       [2]             TSX   
+  00bd f6       [3]             LDA   ,X
+  00be c7000b   [4]             STA   IIC_TX_Data:11
+  240:          debug_led |= 0x01;
+  00c1 450000   [3]             LDHX  @debug_led
+  00c4 f6       [3]             LDA   ,X
+  00c5 aa01     [2]             ORA   #1
+  00c7 f7       [2]             STA   ,X
+  241:        }else{
+  00c8 a70c     [2]             AIS   #12
+  00ca 2007     [3]             BRA   LD3 ;abs = 00d3
+  00cc          LCC:    
+  242:          debug_led &= ~0x01;
+  00cc 450000   [3]             LDHX  @debug_led
+  00cf f6       [3]             LDA   ,X
+  00d0 a4fe     [2]             AND   #-2
+  00d2 f7       [2]             STA   ,X
+  00d3          LD3:    
+  243:        }
+  244:  
+  245:        if(PTAD_PTAD3 == 0){
+  00d3 060042   [5]             BRSET 3,_PTAD,L118 ;abs = 0118
+  246:          hour_counter2++;
+  00d6 450000   [3]             LDHX  @hour_counter2
+  00d9 cd01ff   [6]             JSR   L1FF ;abs = 01ff
+  247:          IIC_TX_Data[12] = (unsigned char)((hour_counter2&0x000000ff));
+  00dc c60003   [4]             LDA   hour_counter2:3
+  00df c7000c   [4]             STA   IIC_TX_Data:12
+  248:          IIC_TX_Data[13] = (unsigned char)((hour_counter2&0x0000ff00)>>8);
+  00e2 c60002   [4]             LDA   hour_counter2:2
+  00e5 c7000d   [4]             STA   IIC_TX_Data:13
+  249:          IIC_TX_Data[14] = (unsigned char)((hour_counter2&0x00ff0000)>>16);
+  00e8 450000   [3]             LDHX  @hour_counter2
+  00eb cd0000   [6]             JSR   _LAND_RC
+  00ee 00ff0000         DC.L  16711680
+  00f2 95       [2]             TSX   
+  00f3 a610     [2]             LDA   #16
+  00f5 cd0000   [6]             JSR   _LLSR
+  00f8 95       [2]             TSX   
+  00f9 e603     [3]             LDA   3,X
+  00fb c7000e   [4]             STA   IIC_TX_Data:14
+  250:          IIC_TX_Data[15] = (unsigned char)((hour_counter2&0xff000000)>>24);
+  00fe 450000   [3]             LDHX  @hour_counter2
+  0101 cd0000   [6]             JSR   _LAND_RC
+  0104 ff000000         DC.L  -16777216
+  0108 95       [2]             TSX   
+  0109 f6       [3]             LDA   ,X
+  010a c7000f   [4]             STA   IIC_TX_Data:15
+  251:          debug_led |= 0x02;
+  010d 450000   [3]             LDHX  @debug_led
+  0110 f6       [3]             LDA   ,X
+  0111 aa02     [2]             ORA   #2
+  0113 f7       [2]             STA   ,X
+  252:        }else{
+  0114 a70c     [2]             AIS   #12
+  0116 2007     [3]             BRA   L11F ;abs = 011f
+  0118          L118:   
+  253:          debug_led &= ~0x02;
+  0118 450000   [3]             LDHX  @debug_led
+  011b f6       [3]             LDA   ,X
+  011c a4fd     [2]             AND   #-3
+  011e f7       [2]             STA   ,X
+  011f          L11F:   
+  254:        }
+  255:  
+  256:        if(PTAD_PTAD5 == 0){
+  011f 0a0042   [5]             BRSET 5,_PTAD,L164 ;abs = 0164
+  257:          hour_counter3++;
+  0122 450000   [3]             LDHX  @hour_counter3
+  0125 cd01ff   [6]             JSR   L1FF ;abs = 01ff
+  258:          IIC_TX_Data[16] = (unsigned char)((hour_counter3&0x000000ff));
+  0128 c60003   [4]             LDA   hour_counter3:3
+  012b c70010   [4]             STA   IIC_TX_Data:16
+  259:          IIC_TX_Data[17] = (unsigned char)((hour_counter3&0x0000ff00)>>8);
+  012e c60002   [4]             LDA   hour_counter3:2
+  0131 c70011   [4]             STA   IIC_TX_Data:17
+  260:          IIC_TX_Data[18] = (unsigned char)((hour_counter3&0x00ff0000)>>16);
+  0134 450000   [3]             LDHX  @hour_counter3
+  0137 cd0000   [6]             JSR   _LAND_RC
+  013a 00ff0000         DC.L  16711680
+  013e 95       [2]             TSX   
+  013f a610     [2]             LDA   #16
+  0141 cd0000   [6]             JSR   _LLSR
+  0144 95       [2]             TSX   
+  0145 e603     [3]             LDA   3,X
+  0147 c70012   [4]             STA   IIC_TX_Data:18
+  261:          IIC_TX_Data[19] = (unsigned char)((hour_counter3&0xff000000)>>24);
+  014a 450000   [3]             LDHX  @hour_counter3
+  014d cd0000   [6]             JSR   _LAND_RC
+  0150 ff000000         DC.L  -16777216
+  0154 95       [2]             TSX   
+  0155 f6       [3]             LDA   ,X
+  0156 c70013   [4]             STA   IIC_TX_Data:19
+  262:          debug_led |= 0x04;
+  0159 450000   [3]             LDHX  @debug_led
+  015c f6       [3]             LDA   ,X
+  015d aa04     [2]             ORA   #4
+  015f f7       [2]             STA   ,X
+  263:        }else{
+  0160 a70c     [2]             AIS   #12
+  0162 2007     [3]             BRA   L16B ;abs = 016b
+  0164          L164:   
+  264:          debug_led &= ~0x04;
+  0164 450000   [3]             LDHX  @debug_led
+  0167 f6       [3]             LDA   ,X
+  0168 a4fb     [2]             AND   #-5
+  016a f7       [2]             STA   ,X
+  016b          L16B:   
+  265:        }
+  266:  
+  267:        if(PTBD_PTBD3 == 0){
+  016b 060042   [5]             BRSET 3,_PTBD,L1B0 ;abs = 01b0
+  268:          hour_counter4++;
+  016e 450000   [3]             LDHX  @hour_counter4
+  0171 cd01ff   [6]             JSR   L1FF ;abs = 01ff
+  269:          IIC_TX_Data[20] = (unsigned char)((hour_counter4&0x000000ff));
+  0174 c60003   [4]             LDA   hour_counter4:3
+  0177 c70014   [4]             STA   IIC_TX_Data:20
+  270:          IIC_TX_Data[21] = (unsigned char)((hour_counter4&0x0000ff00)>>8);
+  017a c60002   [4]             LDA   hour_counter4:2
+  017d c70015   [4]             STA   IIC_TX_Data:21
+  271:          IIC_TX_Data[22] = (unsigned char)((hour_counter4&0x00ff0000)>>16);
+  0180 450000   [3]             LDHX  @hour_counter4
+  0183 cd0000   [6]             JSR   _LAND_RC
+  0186 00ff0000         DC.L  16711680
+  018a 95       [2]             TSX   
+  018b a610     [2]             LDA   #16
+  018d cd0000   [6]             JSR   _LLSR
+  0190 95       [2]             TSX   
+  0191 e603     [3]             LDA   3,X
+  0193 c70016   [4]             STA   IIC_TX_Data:22
+  272:          IIC_TX_Data[23] = (unsigned char)((hour_counter4&0xff000000)>>24);
+  0196 450000   [3]             LDHX  @hour_counter4
+  0199 cd0000   [6]             JSR   _LAND_RC
+  019c ff000000         DC.L  -16777216
+  01a0 95       [2]             TSX   
+  01a1 f6       [3]             LDA   ,X
+  01a2 c70017   [4]             STA   IIC_TX_Data:23
+  273:          debug_led |= 0x08;
+  01a5 450000   [3]             LDHX  @debug_led
+  01a8 f6       [3]             LDA   ,X
+  01a9 aa08     [2]             ORA   #8
+  01ab f7       [2]             STA   ,X
+  274:        }else{
+  01ac a70c     [2]             AIS   #12
+  01ae          L1AE:   
+  01ae 2007     [3]             BRA   L1B7 ;abs = 01b7
+  01b0          L1B0:   
+  275:          debug_led &= ~0x08;
+  01b0 450000   [3]             LDHX  @debug_led
+  01b3 f6       [3]             LDA   ,X
+  01b4 a4f7     [2]             AND   #-9
+  01b6 f7       [2]             STA   ,X
+  01b7          L1B7:   
+  276:        }
+  277:  
+  278:      }
+  279:  
+  280:      if(debug_led&debug_mask){
+  01b7 c60000   [4]             LDA   debug_mask
+  01ba c40000   [4]             AND   debug_led
+  01bd 2703     [3]             BEQ   L1C2 ;abs = 01c2
+  281:        PTBD_PTBD4 = 1;
+  01bf 1800     [5]             BSET  4,_PTBD
+  282:      }else{
+  01c1 65       [3]             SKIP2 L1C4 ;abs = 01c4
+  01c2          L1C2:   
+  283:        PTBD_PTBD4 = 0;
+  01c2 1900     [5]             BCLR  4,_PTBD
+  01c4          L1C4:   
+  284:      }
+  285:  
+  286:      //Daten die ueber IIC gekommen sind, zuordnen bzw. verteilen
+  287:      if(rx_count > 1){
+  01c4 c60000   [4]             LDA   rx_count
+  01c7 a101     [2]             CMP   #1
+  01c9 932e     [3]             BLE   L1F9 ;abs = 01f9
+  288:        if(IIC_RX_Data[0] == 0){
+  01cb c60000   [4]             LDA   IIC_RX_Data
+  01ce 2608     [3]             BNE   L1D8 ;abs = 01d8
+  289:          debug_mask = IIC_RX_Data[1];
+  01d0 c60001   [4]             LDA   IIC_RX_Data:1
+  01d3 c70000   [4]             STA   debug_mask
+  290:        }else if(IIC_RX_Data[0] == 1){
+  01d6 201c     [3]             BRA   L1F4 ;abs = 01f4
+  01d8          L1D8:   
+  01d8 a101     [2]             CMP   #1
+  01da 260b     [3]             BNE   L1E7 ;abs = 01e7
+  291:          pwm0_percent = IIC_RX_Data[1];
+  01dc c60001   [4]             LDA   IIC_RX_Data:1
+  01df c70000   [4]             STA   pwm0_percent
+  292:          Set_PWM0(pwm0_percent);
+  01e2 cd0000   [6]             JSR   Set_PWM0
+  293:        }else if(IIC_RX_Data[0] == 2){
+  01e5 200d     [3]             BRA   L1F4 ;abs = 01f4
+  01e7          L1E7:   
+  01e7 a102     [2]             CMP   #2
+  01e9 2609     [3]             BNE   L1F4 ;abs = 01f4
+  294:          pwm1_percent = IIC_RX_Data[1];
+  01eb c60001   [4]             LDA   IIC_RX_Data:1
+  01ee c70000   [4]             STA   pwm1_percent
+  295:          Set_PWM1(pwm1_percent);
+  01f1 cd0000   [6]             JSR   Set_PWM1
+  01f4          L1F4:   
+  296:        }
+  297:        rx_count = -1;
+  01f4 a6ff     [2]             LDA   #-1
+  01f6 c70000   [4]             STA   rx_count
+  01f9          L1F9:   
+  298:      }
+  299:  
+  300:      __RESET_WATCHDOG(); /* feeds the dog */
+  01f9 c70000   [4]             STA   _SRS
+  01fc cc0044   [4]             JMP   L44 ;abs = 0044
+  01ff          L1FF:   
+  01ff cd0000   [6]             JSR   _LINC
+  0202 cd0000   [6]             JSR   _POP32
+  0205 81       [6]             RTS   
+  301:    }
+  302:  
+  303:  
+  304:  }
+  305:  
+  306:  /** MTIM ISR */
+  307:  //alle 10ms, dauer 6us
+  308:  interrupt 12 void  MTIM_ISR(void)
+  309:  {
+*** EVALUATION ***
+
+Function: MTIM_ISR
+Source  : C:/Users/winterer/workspace/heizung/Project_Headers\../Sources\main.c
+Options : -BfaTSRON -Cs08 -D__NO_FLOAT__ -IC:/Users/winterer/workspace/heizung/Project_Headers -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/lib" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/asm_include" -Lasm=%n.lst -Ms -Qvtpnone -ViewHidden -WmsgFob"%f%e:%l:%k:%d %m\n" -WmsgSd1106
+
+  0000 8b       [2]             PSHH  
+  310:    static char sec = 0;
+  311:    MTIMSC;
+  0001 b600     [3]             LDA   _MTIMSC
+  312:    MTIMSC_TOF = 0;
+  0003 1f00     [5]             BCLR  7,_MTIMSC
+  313:  
+  314:    sec++;
+  0005 450000   [3]             LDHX  @sec
+  0008 7c       [4]             INC   ,X
+  315:    if(sec>=100){
+  0009 c60000   [4]             LDA   sec
+  000c a164     [2]             CMP   #100
+  000e 2540     [3]             BCS   L50 ;abs = 0050
+  316:      secound_counter++;
+  0010 450000   [3]             LDHX  @secound_counter
+  0013 cd0000   [6]             JSR   _LINC
+  0016 cd0000   [6]             JSR   _POP32
+  317:      sec = 0;
+  0019 4f       [1]             CLRA  
+  001a c70000   [4]             STA   sec
+  318:  
+  319:      IIC_TX_Data[0] = (unsigned char)((secound_counter&0x000000ff));
+  001d ce0003   [4]             LDX   secound_counter:3
+  0020 cf0000   [4]             STX   IIC_TX_Data
+  320:      IIC_TX_Data[1] = (unsigned char)((secound_counter&0x0000ff00)>>8);
+  0023 c60002   [4]             LDA   secound_counter:2
+  0026 c70001   [4]             STA   IIC_TX_Data:1
+  321:      IIC_TX_Data[2] = (unsigned char)((secound_counter&0x00ff0000)>>16);
+  0029 450000   [3]             LDHX  @secound_counter
+  002c cd0000   [6]             JSR   _LAND_RC
+  002f 00ff0000         DC.L  16711680
+  0033 95       [2]             TSX   
+  0034 a610     [2]             LDA   #16
+  0036 cd0000   [6]             JSR   _LLSR
+  0039 95       [2]             TSX   
+  003a e603     [3]             LDA   3,X
+  003c c70002   [4]             STA   IIC_TX_Data:2
+  322:      IIC_TX_Data[3] = (unsigned char)((secound_counter&0xff000000)>>24);
+  003f 450000   [3]             LDHX  @secound_counter
+  0042 cd0000   [6]             JSR   _LAND_RC
+  0045 ff000000         DC.L  -16777216
+  0049 95       [2]             TSX   
+  004a f6       [3]             LDA   ,X
+  004b c70003   [4]             STA   IIC_TX_Data:3
+  004e a70c     [2]             AIS   #12
+  0050          L50:    
+  323:  
+  324:    }
+  325:  
+  326:  }
+  0050 8a       [3]             PULH  
+  0051 80       [9]             RTI   
+  327:  
+  328:  
+  329:  interrupt 17 void IIC_ISR(void)
+  330:  {
+*** EVALUATION ***
+
+Function: IIC_ISR
+Source  : C:/Users/winterer/workspace/heizung/Project_Headers\../Sources\main.c
+Options : -BfaTSRON -Cs08 -D__NO_FLOAT__ -IC:/Users/winterer/workspace/heizung/Project_Headers -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/lib" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/asm_include" -Lasm=%n.lst -Ms -Qvtpnone -ViewHidden -WmsgFob"%f%e:%l:%k:%d %m\n" -WmsgSd1106
+
+  0000 8b       [2]             PSHH  
+  331:    //Clear Interrupt Flag
+  332:    IICS_IICIF =1;
+  0001 1200     [5]             BSET  1,_IICS
+  333:  
+  334:    //Master or Slave?
+  335:    if(IICC_MST){
+  0003 0a0040   [5]             BRSET 5,_IICC,L46 ;abs = 0046
+  336:      ; // no master, only slave mode is used
+  337:    }else{
+  338:  
+  339:      //Slave Operation
+  340:      if(IICS_ARBL){ //Arbitration lost?
+  0006 090007   [5]             BRCLR 4,_IICS,L10 ;abs = 0010
+  341:        IICS_ARBL= 1; //clears arbitration lost flag
+  0009 1800     [5]             BSET  4,_IICS
+  342:  
+  343:        //Check For Address Match
+  344:        if(IICS_IAAS){
+  000b 0c0005   [5]             BRSET 6,_IICS,L13 ;abs = 0013
+  345:          tx_count =0;
+  346:          rx_count = 0;
+  347:          CheckSRW();
+  348:        }
+  349:      }else{
+  350:        //Arbitration not Lost
+  351:        if(IICS_IAAS){ //addressed as a slave?
+  352:          tx_count = 0;
+  353:          rx_count = 0;
+  354:          CheckSRW();
+  355:        }else {
+  356:          if(IICC_TX){ //1 = slave transmit data
+  357:            //Check for rec ACK
+  358:            if(!IICS_RXAK){
+  359:              //ACK Recieved
+  360:              //IICD = IIC_TX_Data[tx_count];
+  361:              IICD = IIC_TX_Data[IIC_RX_Data[0]];
+  362:              tx_count++;
+  363:            } else{
+  364:              IICC_TX = 0;
+  365:              IICD;
+  366:            }
+  367:          }else{ //master send data, slave receives data
+  368:            IIC_RX_Data[rx_count] = IICD;
+  369:            rx_count++;
+  370:          }
+  371:        }
+  372:      }
+  373:    }
+  374:  
+  375:  }
+  000e 8a       [3]             PULH  
+  000f 80       [9]             RTI   
+  0010          L10:    
+  0010 0d000c   [5]             BRCLR 6,_IICS,L1F ;abs = 001f
+  0013          L13:    
+  0013 4f       [1]             CLRA  
+  0014 c70000   [4]             STA   tx_count
+  0017 c70000   [4]             STA   rx_count
+  001a cd0000   [6]             JSR   CheckSRW
+  001d 8a       [3]             PULH  
+  001e 80       [9]             RTI   
+  001f          L1F:    
+  001f 090017   [5]             BRCLR 4,_IICC,L39 ;abs = 0039
+  0022 00000e   [5]             BRSET 0,_IICS,L33 ;abs = 0033
+  0025 ce0000   [4]             LDX   IIC_RX_Data
+  0028 8c       [1]             CLRH  
+  0029 d60000   [4]             LDA   @IIC_TX_Data,X
+  002c b700     [3]             STA   _IICD
+  002e 450000   [3]             LDHX  @tx_count
+  0031 2012     [3]             BRA   L45 ;abs = 0045
+  0033          L33:    
+  0033 1900     [5]             BCLR  4,_IICC
+  0035 b600     [3]             LDA   _IICD
+  0037 8a       [3]             PULH  
+  0038 80       [9]             RTI   
+  0039          L39:    
+  0039 8c       [1]             CLRH  
+  003a ce0000   [4]             LDX   rx_count
+  003d b600     [3]             LDA   _IICD
+  003f d70000   [4]             STA   @IIC_RX_Data,X
+  0042 450000   [3]             LDHX  @rx_count
+  0045          L45:    
+  0045 7c       [4]             INC   ,X
+  0046          L46:    
+  0046 8a       [3]             PULH  
+  0047 80       [9]             RTI   
+  376:  
+  377:  
+  378:  /** KBI ISR */
+  379:  
+  380:  //scheinbar loesen beide flanken einen IRQ aus
+  381:  interrupt 18 void  KBI_ISR(void)
+  382:  {
+*** EVALUATION ***
+
+Function: KBI_ISR
+Source  : C:/Users/winterer/workspace/heizung/Project_Headers\../Sources\main.c
+Options : -BfaTSRON -Cs08 -D__NO_FLOAT__ -IC:/Users/winterer/workspace/heizung/Project_Headers -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/lib" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/src" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/include" -I"C:\Program Files (x86)\Freescale\CW MCU v10.0\eclipse\../MCU/lib/hc08c/device/asm_include" -Lasm=%n.lst -Ms -Qvtpnone -ViewHidden -WmsgFob"%f%e:%l:%k:%d %m\n" -WmsgSd1106
+
+  0000 8b       [2]             PSHH  
+  383:    KBISC_KBACK = 1; /* Clear Pending Keyboard Interrupts */
+  0001 1400     [5]             BSET  2,_KBISC
+  384:  
+  385:    current_counter++;
+  0003 450000   [3]             LDHX  @current_counter
+  0006 cd0000   [6]             JSR   _LINC
+  0009 cd0000   [6]             JSR   _POP32
+  386:  
+  387:    IIC_TX_Data[4] = (unsigned char)((current_counter&0x000000ff));
+  000c c60003   [4]             LDA   current_counter:3
+  000f c70004   [4]             STA   IIC_TX_Data:4
+  388:    IIC_TX_Data[5] = (unsigned char)((current_counter&0x0000ff00)>>8);
+  0012 c60002   [4]             LDA   current_counter:2
+  0015 c70005   [4]             STA   IIC_TX_Data:5
+  389:    IIC_TX_Data[6] = (unsigned char)((current_counter&0x00ff0000)>>16);
+  0018 450000   [3]             LDHX  @current_counter
+  001b cd0000   [6]             JSR   _LAND_RC
+  001e 00ff0000         DC.L  16711680
+  0022 95       [2]             TSX   
+  0023 a610     [2]             LDA   #16
+  0025 cd0000   [6]             JSR   _LLSR
+  0028 95       [2]             TSX   
+  0029 e603     [3]             LDA   3,X
+  002b c70006   [4]             STA   IIC_TX_Data:6
+  390:    IIC_TX_Data[7] = (unsigned char)((current_counter&0xff000000)>>24);
+  002e 450000   [3]             LDHX  @current_counter
+  0031 cd0000   [6]             JSR   _LAND_RC
+  0034 ff000000         DC.L  -16777216
+  0038 95       [2]             TSX   
+  0039 f6       [3]             LDA   ,X
+  003a c70007   [4]             STA   IIC_TX_Data:7
+  391:  
+  392:    if(debug_led&0x10){
+  003d c60000   [4]             LDA   debug_led
+  0040 a510     [2]             BIT   #16
+  0042 a70c     [2]             AIS   #12
+  0044 2703     [3]             BEQ   L49 ;abs = 0049
+  393:      debug_led &= ~0x10;
+  0046 a4ef     [2]             AND   #-17
+  394:    }else{
+  0048 65       [3]             SKIP2 L4B ;abs = 004b
+  0049          L49:    
+  395:      debug_led |= 0x10;
+  0049 aa10     [2]             ORA   #16
+  004b          L4B:    
+  004b c70000   [4]             STA   debug_led
+  396:    }
+  397:  
+  398:  }
+  004e 8a       [3]             PULH  
+  004f 80       [9]             RTI   
+  399:  
+  400:  
+  401:  
+  402:  
+  403:  
