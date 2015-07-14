@@ -12,6 +12,9 @@ unsigned char pwm0_percent_old = 0;
 unsigned char pwm1_percent =100;
 unsigned char pwm1_percent_old = 0;
 
+unsigned char elappsed_sec = 0;  //zum Kalibrieren des Sekundenzaehler
+unsigned char calibrate_sec_value = 100;
+
 //IIC Variablen
 #define MAX_IIC_RX_DATA 5
 char IIC_RX_Data[MAX_IIC_RX_DATA]; //idx 0 = register; idx 1 = value
@@ -293,6 +296,20 @@ void main(void)
       }else if(IIC_RX_Data[0] == 2){
         pwm1_percent = IIC_RX_Data[1];
         Set_PWM1(pwm1_percent);
+      }else if(IIC_RX_Data[0] == 3){
+        if(IIC_RX_Data[1] == 0){
+          elappsed_sec = 0;
+        }else{
+          unsigned char now_sec = elappsed_sec;
+          char diff = now_sec - IIC_RX_Data[1];
+          unsigned long hlp = (200/100)*diff;
+          calibrate_sec_value -= (unsigned char)hlp;
+          if(calibrate_sec_value > 120){
+            calibrate_sec_value = 120;
+          }else if(calibrate_sec_value < 80){
+            calibrate_sec_value = 80;
+          }
+        }
       }
       rx_count = -1;
     }
@@ -312,8 +329,9 @@ interrupt 12 void  MTIM_ISR(void)
   MTIMSC_TOF = 0;
 
   sec++;
-  if(sec>=100){
+  if(sec>=calibrate_sec_value){
     secound_counter++;
+    elappsed_sec++;
     sec = 0;
 
     IIC_TX_Data[0] = (unsigned char)((secound_counter&0x000000ff));
