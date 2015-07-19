@@ -12,9 +12,6 @@ unsigned char pwm0_percent_old = 0;
 unsigned char pwm1_percent =100;
 unsigned char pwm1_percent_old = 0;
 
-unsigned char elappsed_sec = 0;  //zum Kalibrieren des Sekundenzaehler
-unsigned char calibrate_sec_value = 100;
-
 //IIC Variablen
 #define MAX_IIC_RX_DATA 5
 char IIC_RX_Data[MAX_IIC_RX_DATA]; //idx 0 = register; idx 1 = value
@@ -25,13 +22,21 @@ char IIC_RX_Data[MAX_IIC_RX_DATA]; //idx 0 = register; idx 1 = value
 //idx 12..15 = hour counter 2 (UWP 1)
 //idx 16..19 = hour counter 3 (UWP 2)
 //idx 20..23 = hour counter 3 (BWP)
-#define MAX_IIC_TX_DATA 24
+
+//idx 24 = fuer debug calibrate_sec_value
+
+#define MAX_IIC_TX_DATA 25
 char IIC_TX_Data[MAX_IIC_TX_DATA];
 signed char rx_count = 0;
 signed char tx_count = 0;
 
 //Zaehlerimpuls vom Stromzaehler
 unsigned long current_counter = 0;
+
+//zum Kalibrieren des Sekundenzaehler
+unsigned char first_calibrate = 1;
+unsigned char calibrate_sec_value = 100;
+unsigned long elappsed_sec = 0;
 
 //Betriebsstundenzaehler
 unsigned long secound_counter = 0;
@@ -296,20 +301,38 @@ void main(void)
       }else if(IIC_RX_Data[0] == 2){
         pwm1_percent = IIC_RX_Data[1];
         Set_PWM1(pwm1_percent);
-      }else if(IIC_RX_Data[0] == 3){
-        if(IIC_RX_Data[1] == 0){
-          elappsed_sec = 0;
+      }else if(IIC_RX_Data[0] == 3){ //alle Stunde aufrufen
+        if(first_calibrate){
+          first_calibrate = 0;
         }else{
-          unsigned char now_sec = elappsed_sec;
-          char diff = now_sec - IIC_RX_Data[1];
-          unsigned long hlp = (200/100)*diff;
-          calibrate_sec_value -= (unsigned char)hlp;
+          long diff = elappsed_sec - 3600;
+          //int hlp = (100/3600)*diff;
+          long hlp = diff/36;
+          calibrate_sec_value += (unsigned char)hlp;
           if(calibrate_sec_value > 120){
             calibrate_sec_value = 120;
           }else if(calibrate_sec_value < 80){
             calibrate_sec_value = 80;
           }
+          IIC_TX_Data[24] = calibrate_sec_value;
         }
+        elappsed_sec = 0;
+
+
+//        if(IIC_RX_Data[1] == 0){
+//          elappsed_sec = 0;
+//        }else{
+//          unsigned char now_sec = elappsed_sec;
+//          char diff = now_sec - IIC_RX_Data[1];
+//          unsigned long hlp = (100/200)*diff;
+//          calibrate_sec_value -= (unsigned char)hlp;
+//          if(calibrate_sec_value > 120){
+//            calibrate_sec_value = 120;
+//          }else if(calibrate_sec_value < 80){
+//            calibrate_sec_value = 80;
+//          }
+//        }
+
       }
       rx_count = -1;
     }
