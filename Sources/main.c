@@ -29,6 +29,7 @@ char IIC_RX_Data[MAX_IIC_RX_DATA]; //idx 0 = register; idx 1 = value
 char IIC_TX_Data[MAX_IIC_TX_DATA];
 signed char rx_count = 0;
 signed char tx_count = 0;
+unsigned char tx_data_write_idx = 0;
 
 //Zaehlerimpuls vom Stromzaehler
 unsigned long current_counter = 0;
@@ -317,22 +318,13 @@ void main(void)
           IIC_TX_Data[24] = calibrate_sec_value;
         }
         elappsed_sec = 0;
-
-
-//        if(IIC_RX_Data[1] == 0){
-//          elappsed_sec = 0;
-//        }else{
-//          unsigned char now_sec = elappsed_sec;
-//          char diff = now_sec - IIC_RX_Data[1];
-//          unsigned long hlp = (100/200)*diff;
-//          calibrate_sec_value -= (unsigned char)hlp;
-//          if(calibrate_sec_value > 120){
-//            calibrate_sec_value = 120;
-//          }else if(calibrate_sec_value < 80){
-//            calibrate_sec_value = 80;
-//          }
-//        }
-
+      }else if(IIC_RX_Data[0] == 4){ //IIC_TX_Data idx auswaehlen
+    	tx_data_write_idx = IIC_RX_Data[1];
+    	if(tx_data_write_idx > MAX_IIC_TX_DATA){
+    	  tx_data_write_idx = MAX_IIC_TX_DATA;
+    	}
+      }else if(IIC_RX_Data[0] == 5){ //IIC_TX_Data idx mit neuem Wert beschreiben
+        IIC_TX_Data[tx_data_write_idx] = IIC_RX_Data[1];
       }
       rx_count = -1;
     }
